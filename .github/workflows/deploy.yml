@@ -1,0 +1,43 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unpack zip (있으면)
+        run: |
+          mkdir -p site
+          ZIP_FILE=$(find . -maxdepth 1 -iname "*.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "zip 발견: $ZIP_FILE"
+            TMP_DIR=$(mktemp -d)
+            unzip -o "$ZIP_FILE" -d "$TMP_DIR"
+
+            ITEMS=$(ls "$TMP_DIR")
+            ITEM_COUNT=$(echo "$ITEMS" | wc -l)
+            if [ "$ITEM_COUNT" -eq 1 ] && [ -d "$TMP_DIR/$ITEMS" ]; then
+              cp -r "$TMP_DIR/$ITEMS"/. site/
+            else
+              cp -r "$TMP_DIR"/. site/
+            fi
+          else
+            echo "zip 없음, 저장소 파일 그대로 사용"
+            cp -r ./* site/ 2>/dev/null || true
+          fi
+          ls -la site
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: highway-app
+          directory: site
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
